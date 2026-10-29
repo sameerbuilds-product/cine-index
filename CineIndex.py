@@ -227,11 +227,11 @@ def fetch_tmdb_titles(api_key, period, media_type, language_filter):
     return normalized
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def get_imdb_rating(omdb_api_key, title, year):
-    if not omdb_api_key:
+def get_imdb_rating(omdb_key, title, year):
+    if not omdb_key:
         return "Add OMDb key"
     try:
-        params = {"apikey": omdb_api_key, "t": title}
+        params = {"apikey": omdb_key, "t": title}
         if str(year).isdigit():
             params["y"] = year
         data = requests.get("https://www.omdbapi.com/", params=params, timeout=10).json()
@@ -242,13 +242,13 @@ def get_imdb_rating(omdb_api_key, title, year):
         pass
     return "—"
 
-def render_movie_grid(items, omdb_api_key, label):
+def render_movie_grid(items, omdb_key, label):
     if not items:
         st.info("No titles came back for this filter. Try another language or refresh shortly.")
         return
     cards = []
     for i, item in enumerate(items[:25], start=1):
-        rating = get_imdb_rating(omdb_api_key, item["title"], item["year"])
+        rating = get_imdb_rating(omdb_key, item["title"], item["year"])
         if rating == "Add OMDb key":
             rating_label = "★ IMDb key needed"
         elif rating == "—":
@@ -325,10 +325,13 @@ st.markdown("<div style='height:10px'></div><div class='section-heading'>Explore
 tab_discover, tab_feed, tab_watchlist, tab_info = st.tabs(["✦  Discover & Trending", "▤  Cinema News", "♡  Watchlist", "ⓘ  About & setup"])
 
 with tab_discover:
-    tmdb_api_key = get_optional_secret("dd1762e251cdf72c775801f7dd9c3615")
-    omdb_api_key = get_optional_secret("8d604a92")
+    tmdb_key = get_optional_secret("dd1762e251cdf72c775801f7dd9c3615")
+    omdb_key = get_optional_secret("8d604a92")
+    st.write("Detected secret names:", list(st.secrets.keys()))
+    st.write("TMDB key detected:", bool(tmdb_key))
+    st.write("OMDb key detected:", bool(omdb_key))
     st.markdown("<div class='section-heading'>The titles everyone's talking about</div><div class='section-sub'>Posters, verified IMDb ratings when available, and one-click Google discovery.</div>", unsafe_allow_html=True)
-    if not tmdb_api_key:
+    if not tmdb_key:
         st.warning("Movie discovery needs a TMDB API key. Add TMDB_API_KEY in Streamlit → App settings → Secrets. Add OMDB_API_KEY too to show actual IMDb ratings on posters.")
         st.markdown("Get keys: [TMDB developer API](https://www.themoviedb.org/settings/api) · [OMDb API](http://www.omdbapi.com/?i=tt3896198&apikey=8d604a92)")
     else:
@@ -344,7 +347,7 @@ with tab_discover:
         try:
             with st.spinner("Finding titles and checking IMDb ratings…"):
                 for kind in kinds:
-                    all_titles.extend(fetch_tmdb_titles(tmdb_api_key, period_key, kind, language_filter))
+                    all_titles.extend(fetch_tmdb_titles(tmdb_key, period_key, kind, language_filter))
             all_titles.sort(key=lambda x: (x.get("popularity", 0), x.get("tmdb_rating") or 0), reverse=True) if period_key != "all" else all_titles.sort(key=lambda x: (x.get("tmdb_rating") or 0, x.get("vote_count") or 0), reverse=True)
             seen, unique_titles = set(), []
             for item in all_titles:
@@ -352,9 +355,9 @@ with tab_discover:
                 if k not in seen:
                     seen.add(k)
                     unique_titles.append(item)
-            if not omdb_api_key:
+            if not omdb_key:
                 st.caption("IMDb ratings come from OMDb. Add OMDB_API_KEY in Secrets to show real IMDb scores; TMDB scores will not be mislabeled as IMDb ratings.")
-            render_movie_grid(unique_titles, omdb_api_key, trend)
+            render_movie_grid(unique_titles, omdb_key, trend)
             st.caption("Posters and discovery data are provided by TMDB. 'Trending this month' uses titles released in the last 30 days; 'All-time favourites' is a high-vote, high-rating discovery ranking. Click any tile to search Google.")
         except Exception as e:
             st.error(f"Could not load movie discovery ({type(e).__name__}). Check TMDB_API_KEY and try again.")
